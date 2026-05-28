@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react'
 import { loginUser } from '@/lib/api/auth'
 import { ROUTES } from '@/constants/routes'
 import { getToken, setToken } from '@/lib/auth/token'
+import { API_BASE_URL } from '@/constants/api'
 
 export default function LoginForm() {
   const router = useRouter()
@@ -58,7 +59,7 @@ export default function LoginForm() {
 
         {/* Google OAuth */}
         <a
-          href={`${process.env.NEXT_PUBLIC_API_URL}/oauth2/authorization/google`}
+          href={`${API_BASE_URL}/oauth2/authorization/google`}
           className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-sm hover:border-indigo-400 dark:hover:border-indigo-600 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-all hover:shadow-md active:scale-[0.98] group"
         >
           <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">

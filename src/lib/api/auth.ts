@@ -1,9 +1,10 @@
 import type { LoginRequest, RegisterRequest, AuthResponse } from '@/types/auth'
 import type { ApiResult } from '@/types/api'
+import { API_BASE_URL } from '@/constants/api'
 
 export async function loginUser(data: LoginRequest): Promise<ApiResult<AuthResponse>> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
@@ -27,7 +28,7 @@ export async function loginUser(data: LoginRequest): Promise<ApiResult<AuthRespo
 
 export async function registerUser(data: RegisterRequest): Promise<ApiResult<AuthResponse>> {
   try {
-    const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/register`, {
+    const res = await fetch(`${API_BASE_URL}/api/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
