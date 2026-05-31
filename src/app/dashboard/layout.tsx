@@ -1,14 +1,25 @@
-import Sidebar from '@/components/Sidebar'
+import DashboardNavbar from '@/components/DashboardNavbar'
 import AuthGuard from '@/components/AuthGuard'
+import { Toaster } from 'sonner'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
-        <Sidebar />
-        <main className="flex-1 min-w-0 pt-14 lg:pt-0">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+        <DashboardNavbar />
+        <main className="max-w-7xl mx-auto">
           {children}
         </main>
+        <Toaster
+          position="bottom-right"
+          toastOptions={{
+            classNames: {
+              toast: 'font-sans text-sm',
+            },
+          }}
+          richColors
+          closeButton
+        />
       </div>
     </AuthGuard>
   )

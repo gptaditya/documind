@@ -16,6 +16,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "DocuMind — AI Document Intelligence",
   description: "Understand your documents instantly with AI-powered analysis, Q&A, and insights.",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
