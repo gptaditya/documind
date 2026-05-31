@@ -1,9 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect, startTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import Logo from './Logo'
 import ThemeToggle from './ThemeToggle'
+import { getToken } from '@/lib/auth/token'
+import { logoutUser } from '@/lib/api/auth'
+import { ROUTES } from '@/constants/routes'
 
 const navLinks = [
   { label: 'Features', href: '#features' },
@@ -11,7 +15,20 @@ const navLinks = [
 ]
 
 export default function Navbar() {
+  const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [loggedIn, setLoggedIn] = useState(false)
+
+  useEffect(() => {
+    startTransition(() => setLoggedIn(!!getToken()))
+  }, [])
+
+  async function handleLogout() {
+    await logoutUser()       // POST /api/auth/logout
+    startTransition(() => setLoggedIn(false))
+    setOpen(false)
+    router.push(ROUTES.login)
+  }
 
   return (
     <nav className="sticky top-0 z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200/80 dark:border-slate-800/80">
@@ -37,21 +54,40 @@ export default function Navbar() {
           {/* Desktop actions */}
           <div className="hidden md:flex items-center gap-2">
             <ThemeToggle />
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-lg transition-colors shadow-sm shadow-indigo-500/30"
-            >
-              Get Started
-            </Link>
+            {loggedIn ? (
+              <>
+                <Link
+                  href={ROUTES.dashboard}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={ROUTES.login}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href={ROUTES.register}
+                  className="px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 rounded-lg transition-colors shadow-sm shadow-indigo-500/30"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
 
-          {/* Mobile actions */}
+          {/* Mobile hamburger */}
           <div className="md:hidden flex items-center gap-1">
             <ThemeToggle />
             <button
@@ -85,20 +121,40 @@ export default function Navbar() {
             </a>
           ))}
           <div className="pt-3 mt-3 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-2">
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="block text-center px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-            >
-              Sign In
-            </Link>
-            <Link
-              href="/register"
-              onClick={() => setOpen(false)}
-              className="block text-center px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
-            >
-              Get Started
-            </Link>
+            {loggedIn ? (
+              <>
+                <Link
+                  href={ROUTES.dashboard}
+                  onClick={() => setOpen(false)}
+                  className="block text-center px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-center px-4 py-2.5 text-sm font-semibold text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors"
+                >
+                  Logout
+                </button>
+              </>
+            ) : (
+              <>
+                <Link
+                  href={ROUTES.login}
+                  onClick={() => setOpen(false)}
+                  className="block text-center px-4 py-2.5 text-sm font-medium text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                >
+                  Sign In
+                </Link>
+                <Link
+                  href={ROUTES.register}
+                  onClick={() => setOpen(false)}
+                  className="block text-center px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                >
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
         </div>
       )}

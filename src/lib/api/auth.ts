@@ -49,3 +49,12 @@ export async function registerUser(data: RegisterRequest): Promise<ApiResult<Aut
     return { success: false, error: 'Network error. Please check your connection.' }
   }
 }
+
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST' })
+  } catch {
+    // Ignore — client-side token removal is the source of truth
+  }
+}

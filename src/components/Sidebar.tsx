@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import Logo from './Logo'
 import ThemeToggle from './ThemeToggle'
+import { logoutUser } from '@/lib/api/auth'
+import { ROUTES } from '@/constants/routes'
 
 const navItems = [
   {
@@ -66,11 +68,21 @@ function NavItem({ item, active, onClick }: { item: typeof navItems[0]; active: 
 
 export default function Sidebar() {
   const pathname = usePathname()
+  const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   function isActive(href: string) {
     if (href === '/dashboard') return pathname === '/dashboard'
     return pathname.startsWith(href)
+  }
+
+  async function handleLogout() {
+    await logoutUser()
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('documind_token')
+    }
+    setMobileOpen(false)
+    router.push(ROUTES.login)
   }
 
   const sidebarContent = (
@@ -95,7 +107,7 @@ export default function Sidebar() {
       {/* Bottom section */}
       <div className="px-3 py-4 border-t border-slate-200 dark:border-slate-800 space-y-1">
         <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
+          <div className="w-8 h-8 rounded-full bg-linear-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold shrink-0">
             A
           </div>
           <div className="flex-1 min-w-0">
@@ -104,15 +116,15 @@ export default function Sidebar() {
           </div>
           <ThemeToggle />
         </div>
-        <Link
-          href="/login"
-          className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
           </svg>
           Sign Out
-        </Link>
+        </button>
       </div>
     </div>
   )
