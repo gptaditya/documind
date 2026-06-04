@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { toast } from 'sonner'
 import { getUser } from '@/lib/auth/token'
-import { fetchDocuments, uploadDocument } from '@/lib/api/documents'
+import { fetchDocuments, uploadDocument, analyzeDocument } from '@/lib/api/documents'
 import type { Document } from '@/types/document'
 
 // Canvas dot-grid with physics repulsion on hover
@@ -38,7 +38,6 @@ function DotGrid({ mouseRef }: { mouseRef: React.RefObject<{ x: number; y: numbe
     function tick() {
       ctx.clearRect(0, 0, canvas!.width, canvas!.height)
       const mp = mouseRef.current
-
       for (const d of dots) {
         if (mp) {
           const dx = d.x - mp.x
@@ -56,7 +55,6 @@ function DotGrid({ mouseRef }: { mouseRef: React.RefObject<{ x: number; y: numbe
         d.vy *= 0.72
         d.x += d.vx
         d.y += d.vy
-
         ctx.beginPath()
         ctx.arc(d.x, d.y, RADIUS, 0, Math.PI * 2)
         ctx.fillStyle = 'rgba(99,102,241,0.22)'
@@ -87,6 +85,8 @@ const colorMap: Record<string, string> = {
   violet: 'bg-violet-50 dark:bg-violet-950 text-violet-600 dark:text-violet-400',
 }
 
+const MAX_QUESTION = 100
+
 export default function DashboardView() {
   const [docs, setDocs] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
@@ -102,31 +102,55 @@ export default function DashboardView() {
   const [dropOver, setDropOver] = useState(false)
   const [uploading, setUploading] = useState(false)
 
+  // After-upload state
+  const [uploadedFile, setUploadedFile] = useState<{ s3Key: string; fileName: string } | null>(null)
+  const [question, setQuestion] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [analysis, setAnalysis] = useState<string | null>(null)
+
   useEffect(() => {
     fetchDocuments().then((result) => {
-      if (result.success) setDocs(result.data)
+      if (result.success) setDocs(Array.isArray(result.data) ? result.data : [])
       setLoading(false)
     })
   }, [])
 
   const handleFiles = useCallback(async (files: File[]) => {
     if (!files.length) return
+    const file = files[0]
     setUploading(true)
-    for (const file of files) {
-      const id = toast.loading(`Uploading ${file.name}…`)
-      const result = await uploadDocument(file)
-      if (result.success) {
-        toast.success(`${file.name} uploaded`, { id })
-      } else {
-        toast.error(result.error ?? 'Upload failed', { id, description: file.name })
-        setUploading(false)
-        return
-      }
+    const toastId = toast.loading(`Uploading ${file.name}…`)
+    const result = await uploadDocument(file)
+    if (result.success) {
+      toast.success(`${file.name} uploaded`, { id: toastId })
+      setUploadedFile({ s3Key: result.data.s3Key, fileName: result.data.fileName })
+      setAnalysis(null)
+      setQuestion('')
+      fetchDocuments().then((r) => { if (r.success) setDocs(Array.isArray(r.data) ? r.data : []) })
+    } else {
+      toast.error(result.error ?? 'Upload failed', { id: toastId, description: file.name })
     }
     setUploading(false)
-    const refreshed = await fetchDocuments()
-    if (refreshed.success) setDocs(refreshed.data)
   }, [])
+
+  async function handleAnalyze() {
+    if (!uploadedFile || !question.trim()) return
+    setAnalyzing(true)
+    setAnalysis('')
+    const toastId = toast.loading('Analysing document…')
+    const result = await analyzeDocument(
+      uploadedFile.s3Key,
+      question.trim(),
+      (chunk) => setAnalysis((prev) => (prev ?? '') + chunk),
+    )
+    if (result.success) {
+      toast.success('Analysis complete', { id: toastId })
+    } else {
+      toast.error(result.error ?? 'Analysis failed', { id: toastId })
+      setAnalysis(null)
+    }
+    setAnalyzing(false)
+  }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? [])
@@ -134,25 +158,12 @@ export default function DashboardView() {
     e.target.value = ''
   }
 
-  // Drag-and-drop on the placeholder section only
-  function onDragEnter(e: React.DragEvent) {
-    e.preventDefault()
-    dragCounter.current++
-    setDropOver(true)
-  }
-  function onDragOver(e: React.DragEvent) {
-    e.preventDefault()
-  }
-  function onDragLeave() {
-    dragCounter.current--
-    if (dragCounter.current === 0) setDropOver(false)
-  }
+  function onDragEnter(e: React.DragEvent) { e.preventDefault(); dragCounter.current++; setDropOver(true) }
+  function onDragOver(e: React.DragEvent) { e.preventDefault() }
+  function onDragLeave() { dragCounter.current--; if (dragCounter.current === 0) setDropOver(false) }
   function onDrop(e: React.DragEvent) {
-    e.preventDefault()
-    dragCounter.current = 0
-    setDropOver(false)
-    const files = Array.from(e.dataTransfer.files)
-    handleFiles(files)
+    e.preventDefault(); dragCounter.current = 0; setDropOver(false)
+    handleFiles(Array.from(e.dataTransfer.files))
   }
 
   function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
@@ -166,24 +177,19 @@ export default function DashboardView() {
       const r = card.getBoundingClientRect()
       const cx = r.left + r.width / 2
       const cy = r.top + r.height / 2
-      setTilt({
-        rx: ((e.clientY - cy) / (r.height / 2)) * -10,
-        ry: ((e.clientX - cx) / (r.width / 2)) * 10,
-      })
+      setTilt({ rx: ((e.clientY - cy) / (r.height / 2)) * -10, ry: ((e.clientX - cx) / (r.width / 2)) * 10 })
     }
   }
 
-  function handleMouseLeave() {
-    mousePosRef.current = null
-    setTilt(null)
-  }
+  function handleMouseLeave() { mousePosRef.current = null; setTilt(null) }
 
+  const today = new Date().toDateString()
   const totalDocs = docs.length
-  const processedToday = docs.filter((d) => {
-    const uploaded = new Date(d.uploadedAt)
-    return uploaded.toDateString() === new Date().toDateString() && d.status === 'processed'
-  }).length
-  const totalQueries = docs.reduce((sum, d) => sum + d.queryCount, 0)
+  const uploadedToday = docs.filter((d) => new Date(d.lastModified).toDateString() === today).length
+  const totalSizeBytes = docs.reduce((sum, d) => sum + Number(d.size), 0)
+  const totalSizeLabel = totalSizeBytes < 1024 * 1024
+    ? `${(totalSizeBytes / 1024).toFixed(1)} KB`
+    : `${(totalSizeBytes / (1024 * 1024)).toFixed(1)} MB`
 
   const stats = [
     {
@@ -197,29 +203,47 @@ export default function DashboardView() {
       ),
     },
     {
-      label: 'Processed Today',
-      value: loading ? '—' : String(processedToday),
+      label: 'Uploaded Today',
+      value: loading ? '—' : String(uploadedToday),
       color: 'emerald',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
         </svg>
       ),
     },
     {
-      label: 'AI Queries',
-      value: loading ? '—' : String(totalQueries),
+      label: 'Total Size',
+      value: loading ? '—' : (totalDocs === 0 ? '0 KB' : totalSizeLabel),
       color: 'violet',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2 1 3 3 3h10c2 0 3-1 3-3V9l-5-5H7c-2 0-3 1-3 3z" />
         </svg>
       ),
     },
   ]
 
+  const showEmpty = !loading && !uploadedFile
+
   return (
     <div className="h-[calc(100vh-3.5rem)] flex flex-col px-6 lg:px-8 py-5 overflow-hidden">
+      <style>{`
+        @keyframes float3d {
+          0%   { transform: perspective(900px) rotateX(5deg) rotateY(-8deg) translateY(0px); }
+          33%  { transform: perspective(900px) rotateX(3deg) rotateY(8deg)  translateY(-12px); }
+          66%  { transform: perspective(900px) rotateX(6deg) rotateY(2deg)  translateY(-6px); }
+          100% { transform: perspective(900px) rotateX(5deg) rotateY(-8deg) translateY(0px); }
+        }
+        @keyframes shadow-pulse {
+          0%, 100% { transform: scaleX(1);    opacity: 0.25; }
+          50%       { transform: scaleX(0.72); opacity: 0.12; }
+        }
+        @keyframes badge-float {
+          0%, 100% { transform: translateY(0px)  rotate(-6deg); }
+          50%       { transform: translateY(-6px) rotate(-6deg); }
+        }
+      `}</style>
 
       {/* Header */}
       <div className="mb-4 shrink-0">
@@ -229,145 +253,255 @@ export default function DashboardView() {
         <p className="text-slate-500 dark:text-slate-400 mt-0.5 text-sm">Here&apos;s what&apos;s happening with your documents today.</p>
       </div>
 
-      {/* Upload placeholder — fills remaining height */}
-      {!loading && docs.length === 0 && (
-        <>
-          <style>{`
-            @keyframes float3d {
-              0%   { transform: perspective(900px) rotateX(5deg) rotateY(-8deg) translateY(0px); }
-              33%  { transform: perspective(900px) rotateX(3deg) rotateY(8deg)  translateY(-12px); }
-              66%  { transform: perspective(900px) rotateX(6deg) rotateY(2deg)  translateY(-6px); }
-              100% { transform: perspective(900px) rotateX(5deg) rotateY(-8deg) translateY(0px); }
-            }
-            @keyframes shadow-pulse {
-              0%, 100% { transform: scaleX(1);    opacity: 0.25; }
-              50%       { transform: scaleX(0.72); opacity: 0.12; }
-            }
-            @keyframes badge-float {
-              0%, 100% { transform: translateY(0px)  rotate(-6deg); }
-              50%       { transform: translateY(-6px) rotate(-6deg); }
-            }
-          `}</style>
+      {/* Stats */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 shrink-0">
+        {stats.map((stat) => (
+          <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between hover:shadow-md transition-shadow">
+            <div>
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
+              <p className="text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
+            </div>
+            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${colorMap[stat.color]}`}>
+              {stat.icon}
+            </div>
+          </div>
+        ))}
+      </div>
 
-          <input
-            ref={fileInputRef}
-            type="file"
-            multiple
-            accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg"
-            className="hidden"
-            onChange={handleInputChange}
-          />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.png,.jpg,.jpeg"
+        className="hidden"
+        onChange={handleInputChange}
+      />
 
-          <div
-            ref={sectionRef}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={handleMouseLeave}
-            onDragEnter={onDragEnter}
-            onDragOver={onDragOver}
-            onDragLeave={onDragLeave}
-            onDrop={onDrop}
-            className={`relative flex-1 min-h-0 overflow-hidden rounded-3xl border-2 bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center select-none transition-colors duration-200 ${
-              dropOver
-                ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30'
-                : 'border-dashed border-slate-200 dark:border-slate-800'
-            }`}
-          >
-            {/* Physics dot grid */}
-            <DotGrid mouseRef={mousePosRef} />
+      {/* Empty upload placeholder */}
+      {showEmpty && (
+        <div
+          ref={sectionRef}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          onDragEnter={onDragEnter}
+          onDragOver={onDragOver}
+          onDragLeave={onDragLeave}
+          onDrop={onDrop}
+          className={`relative flex-1 min-h-0 overflow-hidden rounded-3xl border-2 bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center select-none transition-colors duration-200 ${
+            dropOver
+              ? 'border-indigo-500 dark:border-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/30'
+              : 'border-dashed border-slate-200 dark:border-slate-800'
+          }`}
+        >
+          <DotGrid mouseRef={mousePosRef} />
 
-            {/* Drop overlay — centered over the whole section */}
-            {dropOver && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-indigo-950/70 backdrop-blur-[2px]">
-                <div className="flex flex-col items-center gap-4 px-14 py-10 rounded-2xl border-2 border-dashed border-indigo-400">
-                  <svg className="w-14 h-14 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p className="text-xl font-bold text-white">Drop files to upload</p>
-                  <p className="text-sm text-indigo-300">PDF, DOCX, XLSX, PPTX, TXT, PNG, JPG</p>
-                </div>
-              </div>
-            )}
-
-            {/* 3-D document stack */}
-            <div
-              ref={cardRef}
-              className="relative mb-2 z-10"
-              style={
-                tilt
-                  ? { transform: `perspective(900px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`, transition: 'transform 0.18s ease-out', transformStyle: 'preserve-3d' }
-                  : { animation: 'float3d 5s ease-in-out infinite', transformStyle: 'preserve-3d' }
-              }
-            >
-              <div className="absolute inset-0 w-44 h-56 rounded-2xl bg-indigo-300/40 dark:bg-indigo-800/40"
-                   style={{ transform: 'translateX(14px) translateY(14px) rotate(8deg)', filter: 'blur(1px)' }} />
-              <div className="absolute inset-0 w-44 h-56 rounded-2xl bg-indigo-200/60 dark:bg-indigo-700/50"
-                   style={{ transform: 'translateX(7px) translateY(7px) rotate(4deg)' }} />
-              <div className="relative w-44 h-56 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col items-center justify-center gap-4 overflow-hidden">
-                {tilt && (
-                  <div className="absolute inset-0 rounded-2xl pointer-events-none"
-                       style={{ background: `radial-gradient(ellipse at ${50 + tilt.ry * 1.5}% ${50 + tilt.rx * 1.5}%, rgba(255,255,255,0.18), transparent 70%)` }} />
-                )}
-                <div className="absolute top-5 left-5 right-5 space-y-2">
-                  <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-3/4" />
-                  <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-1/2" />
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
-                  <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                </div>
-                <div className="absolute bottom-5 left-5 right-5 space-y-2">
-                  <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700" />
-                  <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-2/3" />
-                </div>
-              </div>
-              <div className="absolute -top-3 -right-5 bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg shadow-indigo-500/40"
-                   style={{ animation: 'badge-float 3s ease-in-out infinite 0.8s' }}>
-                AI Ready
+          {dropOver && (
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 rounded-3xl bg-indigo-950/70 backdrop-blur-[2px]">
+              <div className="flex flex-col items-center gap-4 px-14 py-10 rounded-2xl border-2 border-dashed border-indigo-400">
+                <svg className="w-14 h-14 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+                <p className="text-xl font-bold text-white">Drop files to upload</p>
+                <p className="text-sm text-indigo-300">PDF, DOCX, XLSX, PPTX, TXT, PNG, JPG</p>
               </div>
             </div>
+          )}
 
-            <div className="w-36 h-3 rounded-full bg-indigo-400/30 dark:bg-indigo-500/20 blur-md mb-10 z-10"
-                 style={{ animation: tilt ? 'none' : 'shadow-pulse 5s ease-in-out infinite' }} />
+          {/* 3-D document stack */}
+          <div
+            ref={cardRef}
+            className="relative mb-2 z-10"
+            style={
+              tilt
+                ? { transform: `perspective(900px) rotateX(${tilt.rx}deg) rotateY(${tilt.ry}deg)`, transition: 'transform 0.18s ease-out', transformStyle: 'preserve-3d' }
+                : { animation: 'float3d 5s ease-in-out infinite', transformStyle: 'preserve-3d' }
+            }
+          >
+            <div className="absolute inset-0 w-44 h-56 rounded-2xl bg-indigo-300/40 dark:bg-indigo-800/40"
+                 style={{ transform: 'translateX(14px) translateY(14px) rotate(8deg)', filter: 'blur(1px)' }} />
+            <div className="absolute inset-0 w-44 h-56 rounded-2xl bg-indigo-200/60 dark:bg-indigo-700/50"
+                 style={{ transform: 'translateX(7px) translateY(7px) rotate(4deg)' }} />
+            <div className="relative w-44 h-56 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col items-center justify-center gap-4 overflow-hidden">
+              {tilt && (
+                <div className="absolute inset-0 rounded-2xl pointer-events-none"
+                     style={{ background: `radial-gradient(ellipse at ${50 + tilt.ry * 1.5}% ${50 + tilt.rx * 1.5}%, rgba(255,255,255,0.18), transparent 70%)` }} />
+              )}
+              <div className="absolute top-5 left-5 right-5 space-y-2">
+                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-3/4" />
+                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-1/2" />
+              </div>
+              <div className="w-14 h-14 rounded-2xl bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
+                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <div className="absolute bottom-5 left-5 right-5 space-y-2">
+                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700" />
+                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-2/3" />
+              </div>
+            </div>
+            <div className="absolute -top-3 -right-5 bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg shadow-indigo-500/40"
+                 style={{ animation: 'badge-float 3s ease-in-out infinite 0.8s' }}>
+              AI Ready
+            </div>
+          </div>
 
-            <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2 relative z-10">No documents yet</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-sm mb-2 text-center max-w-xs leading-relaxed relative z-10">
-              Upload a document to start analyzing, summarizing, and querying with AI.
-            </p>
-            <p className="text-xs text-slate-400 dark:text-slate-500 mb-7 relative z-10">
-              PDF, DOCX, XLSX, PPTX, TXT, PNG, JPG
-            </p>
+          <div className="w-36 h-3 rounded-full bg-indigo-400/30 dark:bg-indigo-500/20 blur-md mb-2 z-10"
+               style={{ animation: tilt ? 'none' : 'shadow-pulse 5s ease-in-out infinite' }} />
 
+          <p className="text-slate-500 dark:text-slate-400 text-sm mb-1 text-center max-w-xs leading-relaxed relative z-10">
+            Upload a document to start analyzing, summarizing, and querying with AI.
+          </p>
+          <p className="text-xs text-slate-400 dark:text-slate-500 mb-5 relative z-10">PDF, DOCX, XLSX, PPTX, TXT, PNG, JPG</p>
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="relative z-10 inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {uploading ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Uploading…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Upload your first document
+              </>
+            )}
+          </button>
+
+          <div className="flex items-center gap-3 mt-4 w-64 relative z-10">
+            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+            <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">or drag &amp; drop here</span>
+            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
+          </div>
+        </div>
+      )}
+
+      {/* Analyze panel — shown after successful upload */}
+      {uploadedFile && (
+        <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
+
+          {/* Left: file info + question + button */}
+          <div className="w-80 shrink-0 flex flex-col gap-3">
+
+            {/* Uploaded file card */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-2">Uploaded File</p>
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center shrink-0">
+                  <svg className="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-800 dark:text-white truncate">{uploadedFile.fileName}</p>
+                  <p className="text-xs text-emerald-500 mt-0.5 flex items-center gap-1">
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Ready to analyse
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="mt-3 w-full text-xs text-slate-400 dark:text-slate-500 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors text-left"
+              >
+                ↑ Replace with another file
+              </button>
+            </div>
+
+            {/* Question input */}
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 flex flex-col gap-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide">Your Question</label>
+                <span className={`text-xs tabular-nums ${question.length > MAX_QUESTION ? 'text-red-500' : 'text-slate-400 dark:text-slate-500'}`}>
+                  {question.length}/{MAX_QUESTION}
+                </span>
+              </div>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value.slice(0, MAX_QUESTION))}
+                placeholder="e.g. Summarize this document"
+                rows={3}
+                className="w-full resize-none text-sm text-slate-800 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 bg-slate-50 dark:bg-slate-800 rounded-xl px-3 py-2 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500 dark:focus:border-indigo-400 transition"
+              />
+              {question.length === 0 && (
+                <p className="text-xs text-slate-400 dark:text-slate-500">Ask anything about the document.</p>
+              )}
+            </div>
+
+            {/* Analyse button */}
             <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              className="relative z-10 inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed disabled:active:scale-100"
+              onClick={handleAnalyze}
+              disabled={!question.trim() || question.length > MAX_QUESTION || analyzing}
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
             >
-              {uploading ? (
+              {analyzing ? (
                 <>
                   <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                   </svg>
-                  Uploading…
+                  Analysing…
                 </>
               ) : (
                 <>
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
-                  Upload your first document
+                  Analyse Document
                 </>
               )}
             </button>
-
-            <div className="flex items-center gap-3 mt-5 w-64 relative z-10">
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-              <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">or drag &amp; drop here</span>
-              <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
-            </div>
           </div>
-        </>
+
+          {/* Right: analysis result */}
+          <div className="flex-1 min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 shrink-0">
+              <div className="w-2 h-2 rounded-full bg-indigo-500" />
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Analysis Result</p>
+            </div>
+
+            {!analysis && !analyzing && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-8">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">No analysis yet</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">Type a question and click &ldquo;Analyse Document&rdquo; to get started.</p>
+              </div>
+            )}
+
+            {analyzing && !analysis && (
+              <div className="flex-1 flex flex-col items-center justify-center gap-3">
+                <svg className="w-8 h-8 animate-spin text-indigo-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Analysing your document…</p>
+              </div>
+            )}
+
+            {analysis !== null && (
+              <div className="flex-1 overflow-y-auto px-5 py-4">
+                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                  {analysis}
+                  {analyzing && <span className="inline-block w-1.5 h-4 ml-0.5 bg-indigo-500 animate-pulse rounded-sm align-middle" />}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   )

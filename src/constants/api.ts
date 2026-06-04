@@ -16,8 +16,9 @@ export const API_ENDPOINTS = {
     google: '/api/auth/google',
   },
   documents: {
-    list: '/api/documents',
+    list: '/api/documents/all',
     upload: '/api/documents/upload',
+    analyze: '/api/documents/analyze/stream',
     get: (id: string) => `/api/documents/${id}`,
     delete: (id: string) => `/api/documents/${id}`,
     query: (id: string) => `/api/documents/${id}/query`,

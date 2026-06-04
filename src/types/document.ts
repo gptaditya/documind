@@ -1,24 +1,17 @@
-export type DocumentStatus = 'pending' | 'processing' | 'processed' | 'failed'
-
-export type DocumentType = 'PDF' | 'DOCX' | 'XLSX' | 'PPTX' | 'PNG' | 'JPG' | 'TXT' | string
-
 export interface Document {
-  id: string
-  name: string
-  type: DocumentType
-  size: number
-  status: DocumentStatus
-  pages?: number
-  queryCount: number
-  uploadedAt: string
-  processedAt?: string
+  s3Key: string
+  fileName: string
+  size: string
+  lastModified: string
 }
 
 export interface DocumentUploadResponse {
-  id: string
-  name: string
-  status: DocumentStatus
-  uploadUrl?: string
+  s3Key: string
+  fileName: string
+}
+
+export interface DocumentAnalysisResponse {
+  analysis: string
 }
 
 export interface DocumentQuery {
