@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: "DocuMind — AI Document Intelligence",
   description: "Understand your documents instantly with AI-powered analysis, Q&A, and insights.",
   icons: {
-    icon: "/icon.svg",
+    icon: "/documind-logo-bg.png",
   },
 };
 

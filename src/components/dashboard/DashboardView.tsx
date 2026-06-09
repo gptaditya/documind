@@ -227,7 +227,7 @@ export default function DashboardView() {
   const showEmpty = !loading && !uploadedFile
 
   return (
-    <div className="h-[calc(100vh-3.5rem)] flex flex-col px-6 lg:px-8 py-5 overflow-hidden">
+    <div className="min-h-[calc(100vh-3.5rem)] sm:h-[calc(100vh-3.5rem)] flex flex-col px-4 sm:px-6 lg:px-8 py-4 sm:py-5 sm:overflow-hidden">
       <style>{`
         @keyframes float3d {
           0%   { transform: perspective(900px) rotateX(5deg) rotateY(-8deg) translateY(0px); }
@@ -246,23 +246,23 @@ export default function DashboardView() {
       `}</style>
 
       {/* Header */}
-      <div className="mb-4 shrink-0">
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+      <div className="mb-3 sm:mb-4 shrink-0">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
           {greeting()}{user?.name ? `, ${user.name.split(' ')[0]}` : ''}
         </h1>
-        <p className="text-slate-500 dark:text-slate-400 mt-0.5 text-sm">Here&apos;s what&apos;s happening with your documents today.</p>
+        <p className="text-slate-500 dark:text-slate-400 mt-0.5 text-xs sm:text-sm">Here&apos;s what&apos;s happening with your documents today.</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4 shrink-0">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 mb-3 sm:mb-4 shrink-0">
         {stats.map((stat) => (
-          <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 px-4 py-3 flex items-center justify-between hover:shadow-md transition-shadow">
-            <div>
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5">{stat.label}</p>
-              <p className="text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
+          <div key={stat.label} className="bg-white dark:bg-slate-900 rounded-xl sm:rounded-2xl border border-slate-200 dark:border-slate-800 px-2.5 py-2 sm:px-4 sm:py-3 flex items-center justify-between hover:shadow-md transition-shadow">
+            <div className="min-w-0">
+              <p className="text-[10px] sm:text-xs font-medium text-slate-500 dark:text-slate-400 mb-0.5 truncate">{stat.label}</p>
+              <p className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white">{stat.value}</p>
             </div>
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${colorMap[stat.color]}`}>
-              {stat.icon}
+            <div className={`w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl flex items-center justify-center shrink-0 ml-1 ${colorMap[stat.color]}`}>
+              <span className="[&>svg]:w-3.5 [&>svg]:h-3.5 sm:[&>svg]:w-5 sm:[&>svg]:h-5">{stat.icon}</span>
             </div>
           </div>
         ))}
@@ -316,47 +316,47 @@ export default function DashboardView() {
                 : { animation: 'float3d 5s ease-in-out infinite', transformStyle: 'preserve-3d' }
             }
           >
-            <div className="absolute inset-0 w-44 h-56 rounded-2xl bg-indigo-300/40 dark:bg-indigo-800/40"
+            <div className="absolute inset-0 w-32 h-40 sm:w-44 sm:h-56 rounded-2xl bg-indigo-300/40 dark:bg-indigo-800/40"
                  style={{ transform: 'translateX(14px) translateY(14px) rotate(8deg)', filter: 'blur(1px)' }} />
-            <div className="absolute inset-0 w-44 h-56 rounded-2xl bg-indigo-200/60 dark:bg-indigo-700/50"
+            <div className="absolute inset-0 w-32 h-40 sm:w-44 sm:h-56 rounded-2xl bg-indigo-200/60 dark:bg-indigo-700/50"
                  style={{ transform: 'translateX(7px) translateY(7px) rotate(4deg)' }} />
-            <div className="relative w-44 h-56 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col items-center justify-center gap-4 overflow-hidden">
+            <div className="relative w-32 h-40 sm:w-44 sm:h-56 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl flex flex-col items-center justify-center gap-3 sm:gap-4 overflow-hidden">
               {tilt && (
                 <div className="absolute inset-0 rounded-2xl pointer-events-none"
                      style={{ background: `radial-gradient(ellipse at ${50 + tilt.ry * 1.5}% ${50 + tilt.rx * 1.5}%, rgba(255,255,255,0.18), transparent 70%)` }} />
               )}
-              <div className="absolute top-5 left-5 right-5 space-y-2">
-                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-3/4" />
-                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-1/2" />
+              <div className="absolute top-3 left-3 right-3 sm:top-5 sm:left-5 sm:right-5 space-y-1.5 sm:space-y-2">
+                <div className="h-1 sm:h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-3/4" />
+                <div className="h-1 sm:h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-1/2" />
               </div>
-              <div className="w-14 h-14 rounded-2xl bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
-                <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center shadow-lg shadow-indigo-500/40">
+                <svg className="w-5 h-5 sm:w-7 sm:h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                 </svg>
               </div>
-              <div className="absolute bottom-5 left-5 right-5 space-y-2">
-                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700" />
-                <div className="h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-2/3" />
+              <div className="absolute bottom-3 left-3 right-3 sm:bottom-5 sm:left-5 sm:right-5 space-y-1.5 sm:space-y-2">
+                <div className="h-1 sm:h-1.5 rounded-full bg-slate-100 dark:bg-slate-700" />
+                <div className="h-1 sm:h-1.5 rounded-full bg-slate-100 dark:bg-slate-700 w-2/3" />
               </div>
             </div>
             <div className="absolute -top-3 -right-5 bg-indigo-600 dark:bg-indigo-500 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg shadow-indigo-500/40"
                  style={{ animation: 'badge-float 3s ease-in-out infinite 0.8s' }}>
-              AI Ready
+              DocuMind
             </div>
           </div>
 
-          <div className="w-36 h-3 rounded-full bg-indigo-400/30 dark:bg-indigo-500/20 blur-md mb-2 z-10"
+          <div className="w-24 sm:w-36 h-3 rounded-full bg-indigo-400/30 dark:bg-indigo-500/20 blur-md mb-1 sm:mb-2 z-10"
                style={{ animation: tilt ? 'none' : 'shadow-pulse 5s ease-in-out infinite' }} />
 
-          <p className="text-slate-500 dark:text-slate-400 text-sm mb-1 text-center max-w-xs leading-relaxed relative z-10">
+          <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mb-1 text-center max-w-xs leading-relaxed relative z-10 px-4">
             Upload a document to start analyzing, summarizing, and querying with AI.
           </p>
-          <p className="text-xs text-slate-400 dark:text-slate-500 mb-5 relative z-10">PDF, DOCX, XLSX, PPTX, TXT, PNG, JPG</p>
+          <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 mb-3 sm:mb-5 relative z-10">PDF, DOCX, XLSX, PPTX, TXT, PNG, JPG</p>
 
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="relative z-10 inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="relative z-10 inline-flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-indigo-600 hover:bg-indigo-700 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-semibold text-sm rounded-xl transition-all hover:shadow-lg hover:shadow-indigo-500/30 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {uploading ? (
               <>
@@ -376,7 +376,7 @@ export default function DashboardView() {
             )}
           </button>
 
-          <div className="flex items-center gap-3 mt-4 w-64 relative z-10">
+          <div className="flex items-center gap-3 mt-3 sm:mt-4 w-52 sm:w-64 relative z-10">
             <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
             <span className="text-xs text-slate-400 dark:text-slate-500 whitespace-nowrap">or drag &amp; drop here</span>
             <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
@@ -386,10 +386,10 @@ export default function DashboardView() {
 
       {/* Analyze panel — shown after successful upload */}
       {uploadedFile && (
-        <div className="flex-1 min-h-0 flex gap-4 overflow-hidden">
+        <div className="flex-1 min-h-0 flex flex-col sm:flex-row gap-4 overflow-y-auto sm:overflow-hidden">
 
           {/* Left: file info + question + button */}
-          <div className="w-80 shrink-0 flex flex-col gap-3">
+          <div className="w-full sm:w-80 shrink-0 flex flex-col gap-3">
 
             {/* Uploaded file card */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4">
@@ -464,7 +464,7 @@ export default function DashboardView() {
           </div>
 
           {/* Right: analysis result */}
-          <div className="flex-1 min-w-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
+          <div className="flex-1 min-w-0 min-h-64 sm:min-h-0 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden">
             <div className="px-5 py-3 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2 shrink-0">
               <div className="w-2 h-2 rounded-full bg-indigo-500" />
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Analysis Result</p>
